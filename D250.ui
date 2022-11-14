@@ -691,7 +691,7 @@
     <string>pitch (um)</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="Button_MOVE_2">
+  <widget class="QPushButton" name="Button_Position">
    <property name="geometry">
     <rect>
      <x>150</x>

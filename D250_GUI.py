@@ -16,7 +16,7 @@ import pyqtgraph as pg
 import datetime
 from scipy.special import erfc
 from scipy.optimize import curve_fit
-# import pyqtgraph.exporters # pg.exporters を呼ぶために必要
+import pyqtgraph.exporters # pg.exporters を呼ぶために必要
 # import time
 
 class MainWindow(QMainWindow):
@@ -28,9 +28,10 @@ class MainWindow(QMainWindow):
         self.y = {}
         self.lines = {}
         
-        global dlg1,times
+        global dlg1,times,Flag_direction
         times = 0
         dlg1 = uic.loadUi("D250.ui")  # 作成した page1.ui を読み出して, ダイアログ1を作成
+        Flag_direction = 0
 
         ## Default ##
         dlg1.LineEdit_Folders.setText("C:\\Users\\owner\\Desktop\\")
@@ -56,7 +57,7 @@ class MainWindow(QMainWindow):
         dlg1.LineEdit_Knife_XTime.setText('10')
         dlg1.LineEdit_Knife_YTime.setText('10')
         dlg1.LineEdit_Knife_ZTime.setText('100')
-        dlg1.LineEdit_Diameter_Estimate.setText('100')
+        dlg1.LineEdit_Diameter_Estimate.setText('200')
         dlg1.LineEdit_ZSCAN_From.setText('0')
         dlg1.LineEdit_ZSCAN_To.setText('2000')
         dlg1.LineEdit_ZSCAN_pitch.setText('10')
@@ -102,7 +103,7 @@ class MainWindow(QMainWindow):
         p2.getAxis('left').setPen(pg.mkPen(color='w', width=1.5))
         
         p3 = dlg1.graphicsView3.plotItem
-        p3.setLabels(bottom = 'Position (mm)', left='Radius (um)')
+        p3.setLabels(bottom = 'Position (um)', left='Radius (um)')
         p3.getAxis('bottom').setPen(pg.mkPen(color='w', width=1.5))
         p3.getAxis('left').setPen(pg.mkPen(color='w', width=1.5))
         
@@ -126,9 +127,9 @@ class MainWindow(QMainWindow):
         dlg1.LineEdit_Folders.setText(str(file_path))
         
     def Position(self):
-        X = inst.query('AXIX:POS?')
-        Y = inst.query('AXIY:POS?')
-        Z = inst.query('AXIZ:POS?')
+        X = int(inst.query('AXIX:POS?'))
+        Y = int(inst.query('AXIY:POS?'))
+        Z = int(inst.query('AXIZ:POS?'))
         dlg1.textEdit.append('Pos: ' + str([X,Y,Z]))
         dlg1.textEdit.show()
         print('Current Position: ' + str([X,Y,Z]))
@@ -280,12 +281,12 @@ class MainWindow(QMainWindow):
         z_x = np.zeros(Nz+1)
         z_y = np.zeros(Nz+1)
     
-        power_x[0] = dammy_x.T
-        power_x[1] = positionx.T
-        power_y[0] = dammy_y.T
-        power_y[1] = positiony.T
-        power_z[0] = dammy_z.T
-        power_z[1] = positionz.T
+        power_x[0] = dammy_x
+        power_x[1] = positionx
+        power_y[0] = dammy_y
+        power_y[1] = positiony
+        power_z[0] = dammy_z
+        power_z[1] = positionz
         
         j = 0
 
@@ -299,7 +300,7 @@ class MainWindow(QMainWindow):
         p2.clear()
         
         t = 3*np.pi/2
-        diameter = dlg1.LineEdit_Diameter_Estimate.text()
+        diameter = float(dlg1.LineEdit_Diameter_Estimate.text())
 
         for i in range(Nz+1):
             print('z_position = ' + str(positionz[i]) + ' um')
@@ -315,9 +316,9 @@ class MainWindow(QMainWindow):
             D250_move.move_XY(inst,strL,strF,strX,strY)
             power_x[j+2] = rawdata_x.T
             p1.plot(x=positionx, y=rawdata_x*1e3, symbol='o', pen=None, symbolBrush=(Red,Green,Blue), symbolSize=10)
-            pg.QtGui.QApplication.processEvents()            
+            pg.QtGui.QApplication.processEvents()      
+            initialValue = np.array([np.max(rawdata_x), diameter/2, (np.max(positionx)+np.min(positionx))/2])
             try:
-                initialValue = np.array([np.max(rawdata_x), diameter/2, (np.max(positionx)+np.min(positionx))/2])
                 param, cov = curve_fit(KnifeEdge_fit,positionx,rawdata_x,initialValue,maxfev=1000)
                 diameter = np.abs(np.round(2*param[1],6))
                 r_x[i] = diameter/2
@@ -371,39 +372,68 @@ class MainWindow(QMainWindow):
         folder = str(dlg1.LineEdit_Folders.text())
         directory = folder + str(datetime.date.today())
 
-        def duplicate_rename(filename):
+        def duplicate_rename_x(filename):
             new_name = filename
             global times
             if os.path.exists(filename):
                 name, ext = os.path.splitext(filename)
                 while True:
-                    new_name = "{}{}({}){}".format(directory, '_FRAC', times, ext)
+                    new_name = "{}{}({}){}".format(directory, '_KnifeEdge_x', times, ext)
                     if not os.path.exists(new_name):
                         return new_name
                     times += 1
                     dlg1.LineEdit_Data_Number.setText(str(times))
             else:
                 return new_name
-            
+        
+        
+        def duplicate_rename_y(filename):
+            new_name = filename
+            global times
+            if os.path.exists(filename):
+                name, ext = os.path.splitext(filename)
+                while True:
+                    new_name = "{}{}({}){}".format(directory, '_KnifeEdge_y', times, ext)
+                    if not os.path.exists(new_name):
+                        return new_name
+                    times += 1
+                    dlg1.LineEdit_Data_Number.setText(str(times))
+            else:
+                return new_name
+        
+        def duplicate_rename_z(filename):
+            new_name = filename
+            global times
+            if os.path.exists(filename):
+                name, ext = os.path.splitext(filename)
+                while True:
+                    new_name = "{}{}({}){}".format(directory, '_KnifeEdge_z', times, ext)
+                    if not os.path.exists(new_name):
+                        return new_name
+                    times += 1
+                    dlg1.LineEdit_Data_Number.setText(str(times))
+            else:
+                return new_name
+        
         filename0 = "{}{}({}){}".format(directory, '_KnifeEdge_x', times, '.csv')                      
-        filename0 = duplicate_rename(filename0)
+        filename0 = duplicate_rename_x(filename0)
         filename1 = "{}{}({}){}".format(directory, '_KnifeEdge_y', times, '.csv')
-        filename1 = duplicate_rename(filename1)        
+        filename1 = duplicate_rename_y(filename1)        
         filename2 = "{}{}({}){}".format(directory, '_KnifeEdge_z', times, '.csv')
-        filename2 = duplicate_rename(filename2)
+        filename2 = duplicate_rename_z(filename2)
         filename3 = "{}{}({}){}".format(directory, '_KnifeEdge_x', times, '.png')                      
-        filename3 = duplicate_rename(filename3)
+        filename3 = duplicate_rename_x(filename3)
         filename4 = "{}{}({}){}".format(directory, '_KnifeEdge_y', times, '.png')
-        filename4 = duplicate_rename(filename4)        
+        filename4 = duplicate_rename_y(filename4)        
         filename5 = "{}{}({}){}".format(directory, '_KnifeEdge_z', times, '.png')
-        filename5 = duplicate_rename(filename5)
+        filename5 = duplicate_rename_z(filename5)
         filename6 = "{}{}({}){}".format(directory, '_KnifeEdge', times, '.txt')
-        filename6 = duplicate_rename(filename6)
+        filename6 = duplicate_rename_z(filename6)
         
         try:
-            np.savetxt(filename0, power_x, fmt="%.10f",delimiter=",", header=legend)# 保存する文字列。
-            np.savetxt(filename1, power_y, fmt="%.10f",delimiter=",", header=legend)# 保存する文字列。
-            np.savetxt(filename2, power_z, fmt="%.10f",delimiter=",", header="dammy,z,rx,ry,zx,zy")# 保存する文字列。
+            np.savetxt(filename0, power_x.T, fmt="%.10f",delimiter=",", header=legend)# 保存する文字列。
+            np.savetxt(filename1, power_y.T, fmt="%.10f",delimiter=",", header=legend)# 保存する文字列。
+            np.savetxt(filename2, power_z.T, fmt="%.10f",delimiter=",", header="dammy,z,rx,ry,zx,zy")# 保存する文字列。
             exporter = pg.exporters.ImageExporter(dlg1.graphicsView1.scene()) # exportersの直前に pg.QtGui.QApplication.processEvents() を呼ぶ！
             exporter.parameters()['width'] = 1000
             exporter.export(filename3)
@@ -452,6 +482,9 @@ class MainWindow(QMainWindow):
 
         except:
             return
+        
+        D250_check.check(inst)
+        D250_move.move(inst,strL,strF,strX,strY,strZ) 
         
         
     def ZSCAN(self):
